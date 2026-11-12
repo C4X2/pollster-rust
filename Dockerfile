@@ -3,6 +3,9 @@ FROM rust:1-alpine AS builder
 RUN apk add --no-cache musl-dev gcc
 WORKDIR /app
 
+# Limit parallel compiler jobs to minimize peak RAM usage on small instances
+ENV CARGO_BUILD_JOBS=1
+
 # Cache dependencies
 COPY Cargo.toml ./
 RUN mkdir src && echo "fn main() {}" > src/main.rs && cargo build --release && rm -rf src
