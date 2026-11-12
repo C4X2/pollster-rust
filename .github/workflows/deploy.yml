@@ -28,26 +28,32 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Configure SSH key
+      - name: Configure SSH key & verify secrets
         env:
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
           EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
         run: |
+          if [ -z "$EC2_HOST" ] || [ -z "$EC2_USER" ] || [ -z "$EC2_SSH_KEY" ]; then
+            echo "::error::Missing GitHub Actions secrets! Please set EC2_HOST, EC2_USER, and EC2_SSH_KEY in Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
           mkdir -p ~/.ssh
-          echo "$EC2_SSH_KEY" > ~/.ssh/id_rsa
+          printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
 
       - name: Transfer Docker image & restart container on EC2
         env:
           EC2_USER: ${{ secrets.EC2_USER }}
           EC2_HOST: ${{ secrets.EC2_HOST }}
         run: |
+          SSH_OPTS="-i ~/.ssh/id_rsa -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20"
+
           # Stream the compressed ~15MB image directly to EC2 Docker daemon
-          docker save pollster-rust:latest | gzip | ssh "${EC2_USER}@${EC2_HOST}" "gunzip | docker load"
+          docker save pollster-rust:latest | gzip | ssh $SSH_OPTS "${EC2_USER}@${EC2_HOST}" "gunzip | docker load"
 
           # Recreate container while preserving SQLite database on the host
-          ssh "${EC2_USER}@${EC2_HOST}" '
+          ssh $SSH_OPTS "${EC2_USER}@${EC2_HOST}" '
             mkdir -p ~/pollster-data
             docker stop pollster 2>/dev/null || true
             docker rm pollster 2>/dev/null || true
