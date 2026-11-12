@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: pollster-rust
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: PORT
+        value: 8085
+      - key: DATABASE_URL
+        value: /app/data/pollster.db
